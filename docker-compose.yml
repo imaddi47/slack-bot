@@ -1,0 +1,40 @@
+services:
+  slackbot-db:
+    image: postgres:17
+    container_name: slackbot-db
+    env_file:
+      - .env
+    environment:
+      - POSTGRES_USER=${DB_USER}
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+      - POSTGRES_DB=${DB_NAME}
+    volumes:
+      - bot-db-data:/var/lib/postgresql/data
+    restart: unless-stopped
+  slackbot:
+    build: .
+    container_name: slackbot
+    env_file:
+      - .env
+    environment:
+      - PORT=3000
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+    depends_on:
+      - slackbot-db
+  #optional-local-testing
+  ngrok:
+    image: ngrok/ngrok:latest
+    container_name: slackbot-ngrok
+    env_file:
+      - .env
+    environment:
+      - NGROK_AUTHTOKEN=${NGROK_AUTHTOKEN}
+    command: http slackbot:3000
+    restart: unless-stopped
+    depends_on:
+      - slackbot
+
+volumes:
+  bot-db-data:
