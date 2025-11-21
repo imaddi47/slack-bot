@@ -4,14 +4,15 @@ A Slack bot application built to automate tasks and enhance team communication.
 
 ## Overview
 
-This project provides a Slack bot that integrates with your Slack workspace to handle automated workflows and messaging.
+This project implements a Slack bot using `@slack/bolt`. It registers command, event and interactive handlers and exposes HTTP endpoints for Slack to call.
 
 ## Prerequisites
 
-- Node.js (v14 or higher)
-- npm or yarn
-- A Slack workspace and bot token
-- Slack App credentials (Bot Token, Signing Secret)
+- Node.js (v16+ recommended)
+- npm (comes with Node.js) or Yarn
+- A Slack workspace and a Slack App with the following credentials:
+	- `SLACK_OAUTH_TOKEN` (bot token, xoxb-...)
+	- `SLACK_SIGNING_SECRET`
 
 ## Installation
 
@@ -26,61 +27,98 @@ cd slack-bot
 npm install
 ```
 
-3. Set up environment variables:
-Create a `.env` file in the root directory and add:
+3. Create environment variables:
+Create a `.env` file in the project root or copy from a template if provided:
+
 ```
-SLACK_BOT_TOKEN=xoxb-your-token
+# Example .env
+SLACK_OAUTH_TOKEN=xoxb-your-token
 SLACK_SIGNING_SECRET=your-signing-secret
+PORT=3000
 ```
+
+Put real values from your Slack App configuration into `.env`.
 
 ## Running the Bot
 
-Start the bot with:
+- Start the bot:
 ```bash
 npm start
 ```
 
-For development mode with auto-reload:
+- Development with auto-reload (if configured):
 ```bash
 npm run dev
 ```
 
-## Docker Setup
+- Run tests (if any):
+```bash
+npm test
+```
 
-### Build the Docker image:
+Notes:
+- The application entrypoint is `src/server.js` which creates an `ExpressReceiver` and an `App` from `@slack/bolt`.
+- The app exposes the following endpoints via the receiver by default (see `src/server.js`):
+	- `/slack/commands` — for slash commands
+	- `/slack/events` — Events API
+	- `/slack/interactive` — actions, options, view submissions, shortcuts
+
+You do not need separate endpoints for `app.view()`, `app.action()`, `app.options()`, or `app.shortcut()` — they all go to the interactive endpoint.
+
+## Interactive handlers and timeouts
+
+- If you use `external_select` (dynamic options) you MUST respond to Slack within 3 seconds in your `app.options()` handler. If your backend takes longer (5–10s) consider:
+	- Caching the options and responding from cache
+	- Opening a modal to collect user input instead of `external_select`
+	- Returning quick placeholder options and updating the workflow later
+
+## Docker
+
+Build the Docker image:
 ```bash
 docker build -t slack-bot .
 ```
 
-### Run with Docker:
+Run the container (passing the `.env` file):
 ```bash
-docker run --env-file .env slack-bot
+docker run --env-file .env -p 3000:3000 slack-bot
 ```
 
-### Using Docker Compose:
+Using Docker Compose:
 ```bash
 docker-compose up
 ```
 
-Ensure you have a `Dockerfile` and `docker-compose.yml` in the root directory.
-
-## Use Cases
-
-- Automate routine notifications and alerts
-- Handle user queries and provide responses
-- Integrate with external APIs for data retrieval
-- Post scheduled messages and updates
+Note: Verify the Dockerfile `CMD` or `ENTRYPOINT` points to the correct entry file (`src/server.js`) or uses `npm start`. Update the Dockerfile if it references a different file.
 
 ## Project Structure
 
 ```
 slack-bot/
 ├── src/
-│   ├── index.ts       # Entry point
-│   └── handlers/      # Event handlers
-├── .env               # Environment variables
-├── package.json
+│   ├── server.js            # App entrypoint (creates ExpressReceiver + App)
+│   ├── test.js              # Local test/demo handlers
+│   ├── commands/            # Slash command handlers (registered by src/commands/__index.js)
+│   ├── events/              # Event handlers (registered by src/events/__index.js)
+│   └── interactives/        # Interactive handlers (registered by src/interactives/__index.js)
+├── .env.template            # Example env variables (if present)
+├── package.json             # npm scripts and dependencies
 ├── Dockerfile
 ├── docker-compose.yml
 └── README.md
 ```
+
+## Adding handlers
+
+- Add new command/event/interactive modules under `src/commands`, `src/events`, or `src/interactives` following the current pattern. Each module should export an `init(app)` or default export that accepts the `app` instance and registers listeners.
+- There's a loader in each folder (`__index.js`) that imports and registers the handlers. See the existing files for the exact export shape.
+
+## Troubleshooting
+
+- If you see schema validation errors when opening modals (e.g. `invalid_arguments`), ensure modal blocks use `type: 'input'` for form fields and that `label` belongs to `input` blocks, not `section` blocks.
+- For `external_select` option loading, keep the `app.options()` handler fast (<3s) or use caching/modal workarounds.
+
+If you want, I can also:
+- Update the `Dockerfile` to use `npm start` and point to `src/server.js`.
+- Add a `.env.template` file with required variables.
+
