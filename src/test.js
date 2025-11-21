@@ -1,4 +1,4 @@
-import pkg from '@slack/bolt';
+import pkg, { onlyShortcuts } from '@slack/bolt';
 const { App, ExpressReceiver } = pkg;
 import dotenv from 'dotenv';
 
@@ -9,11 +9,11 @@ const receiver = new ExpressReceiver({
   endpoints: {
     commands: '/slack/commands', // Slack will POST here for slash commands
     events: '/slack/events',     // events endpoint (default)
-    interactive: '/slack/interactive' // optional
+    interactive: '/slack/interactive', // optional
   }
 });
 
-const app = new App({
+const app = new App({ 
     token: process.env.SLACK_OAUTH_TOKEN,
     signingSecret: process.env.SLACK_SIGNING_SECRET,
     receiver
@@ -69,12 +69,40 @@ app.event("message", async ({ event, client, say }) => {
 });
 
 // Simple slash command that replies ephemerally
-app.command('/i-ask', async ({ command, ack, respond, client }) => {
+// app.command('/i-ask', async ({ command, ack, respond, client }) => {
+//   await ack(); // acknowledge immediately
+//   // quick ephemeral reply to the user who invoked the command
+//   await respond({
+//     response_type: 'ephemeral',
+//     text: `Thanks <@${command.user_id}> — I received: "${command.text || '(no text)'}"`,
+//   });
+
+//   // optionally open a modal to collect more information
+//   // await client.views.open({
+//   //   trigger_id: command.trigger_id,
+//   //   view: {
+//   //     type: 'modal',
+//   //     callback_id: 'ask_modal',
+//   //     title: { type: 'plain_text', text: 'More details' },
+//   //     submit: { type: 'plain_text', text: 'Send' },
+//   //     blocks: [
+//   //       { type: 'input', block_id: 'q', label: { type: 'plain_text', text: 'Question' }, element: { type: 'plain_text_input', action_id: 'question', initial_value: command.text || '' } }
+//   //     ]
+//   //   }
+//   // });
+// });
+
+app.command('/i-ask', async (payload) => {
+  const { command, ack, respond, client, say } = payload;
   await ack(); // acknowledge immediately
+  console.log("[PAYLOAD]", payload);
   // quick ephemeral reply to the user who invoked the command
   await respond({
     response_type: 'ephemeral',
     text: `Thanks <@${command.user_id}> — I received: "${command.text || '(no text)'}"`,
+  });
+  await say({
+    text: `Hello from say function, <@${command.user_id}>!`,
   });
 
   // optionally open a modal to collect more information
@@ -91,7 +119,6 @@ app.command('/i-ask', async ({ command, ack, respond, client }) => {
   //   }
   // });
 });
-
 
 
 
